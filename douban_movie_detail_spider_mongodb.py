@@ -7,11 +7,7 @@
 # @Copyright (c) 2018 - BCPO <noneenon@protonmail.com>
 
 import requests
-from requests.cookies import RequestsCookieJar
-import random
-import time
 from pymongo import MongoClient
-import progressbar
 
 # MongoDB Connection Client
 conn = MongoClient("mongodb://localhost:27017")
@@ -19,16 +15,16 @@ conn = MongoClient("mongodb://localhost:27017")
 # requests get
 subjectid = []
 headers = {
-        "User_Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.80 Safari/537.36"
+        "User_Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.80 Safari/537.36",
+        "Content-Type": "json"
 }
 api = "http://api.douban.com/v2/movie/subject/"
 
-# progress bar
-p = progressbar.ProgressBar()
+# scylla server
+scylla_proxies = "http://39.105.38.48:8081"
 
 
 def main():
-    cookie_jar = RequestsCookieJar()
     for line in open("subjectid.txt", "r"):
         subjectid.append(line.strip("\n"))
     total = len(subjectid)
@@ -36,16 +32,25 @@ def main():
 
     try:
         db = conn.douban
-        for j in p(range(194,total)):
+        j = 0
+        while j < total:
+            print("J is: " + str(j))
             url = api + str(subjectid[j])
-            sleep_time = random.random()
-            time.sleep(sleep_time)
-            response = requests.get(url,headers=headers,cookies=cookie_jar)
-            if response.status_code == 200:
-                db.movies.insert_one(response.json())
-                cookie_jar = response.cookies
-            else:
-                exit(print("REQUEST ERROR "+str(response.status_code)+" J: "+str(j)))
+            try:
+                response = requests.get(url,headers=headers,proxies={'http': scylla_proxies})
+            except Exception:
+                print("Proxy Error.")
+
+            try:
+                print(response.json())
+                if 'title' in response.json():
+                    j = j + 1
+                    # db.movies.insert_one(response.json())
+                else:
+                    print("Limit")
+            except Exception:
+                j = j + 1
+                print("Response json Error.")
     except Exception:
         exit(print("CREATE DB ERROR."))
     else:
